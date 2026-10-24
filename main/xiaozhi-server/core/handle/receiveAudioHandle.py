@@ -35,8 +35,14 @@ async def handleAudioMessage(conn: "ConnectionHandler", pcm_frame):
 
 
 async def resume_vad_detection(conn: "ConnectionHandler"):
-    # 等待2秒后恢复VAD检测
-    await asyncio.sleep(2)
+    # 唤醒问候语播放期间丢弃音频（防回声误触发VAD）；
+    # 播完 + 0.3s 回声余量即恢复，不再固定等2秒（否则会吞掉用户紧跟的语音）
+    await asyncio.sleep(0.3)
+    waited = 0.0
+    while getattr(conn, "client_is_speaking", False) and waited < 3.0:
+        await asyncio.sleep(0.1)
+        waited += 0.1
+    await asyncio.sleep(0.3)
     conn.just_woken_up = False
 
 

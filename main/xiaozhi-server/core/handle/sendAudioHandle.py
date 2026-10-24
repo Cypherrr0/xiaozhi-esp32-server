@@ -312,9 +312,28 @@ async def send_tts_message(conn: "ConnectionHandler", state, text=None):
         if hasattr(conn, "audio_rate_controller") and conn.audio_rate_controller:
             conn.audio_rate_controller.stop_sending()
         conn.clearSpeakStatus()
+        # 播报结束后延迟把桌宠情绪重置回待机（pet 常驻形象方案）
+        asyncio.create_task(_reset_emotion_to_neutral(conn))
 
     # 发送消息到客户端
     await conn.websocket.send(json.dumps(message))
+
+
+async def _reset_emotion_to_neutral(conn):
+    """TTS 播报结束后，若设备持续空闲则把表情/桌宠重置为待机"""
+    try:
+        await asyncio.sleep(5)
+        if getattr(conn, "client_is_speaking", False) or getattr(conn, "client_abort", False):
+            return
+        now = time.time() * 1000
+        if conn.last_activity_time and now - conn.last_activity_time < 4500:
+            return  # 用户很快又说话了，交给正常对话流程
+        await conn.websocket.send(
+            json.dumps({"type": "llm", "text": "\U0001F916", "emotion": "neutral",
+                        "session_id": conn.session_id})
+        )
+    except Exception:
+        pass
 
 
 async def send_stt_message(conn: "ConnectionHandler", text):

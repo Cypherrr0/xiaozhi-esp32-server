@@ -17,7 +17,7 @@ server:
   # 当你使用docker部署或使用公网部署(使用ssl、域名)时，不一定准确
   # 所以如果你使用docker部署时，将websocket设置成局域网地址
   # 如果你使用公网部署时，将vwebsocket设置成公网地址
-  websocket: ws://你的ip或者域名:端口号/xiaozhi/v1/
+  websocket: ws://192.168.0.102:8000/xiaozhi/v1/
   # 视觉分析接口地址
   # 向设备发送的视觉分析的接口地址
   # 如果按下面默认的写法，系统会自动生成视觉识别地址，并输出在启动日志里，这个地址你可以直接用浏览器访问确认一下
@@ -30,11 +30,11 @@ server:
   # 认证配置
   auth:
     # 是否启用认证
-    enabled: false
+    enabled: true
     # 白名单设备ID列表
     # 如果属于白名单内的设备，不校验token，直接放行
     allowed_devices:
-      - "11:22:33:44:55:66"
+      - "3c:0f:02:de:a6:7c"
  # MQTT网关配置，用于通过OTA下发到设备，根据mqtt_gateway的.env文件配置，格式为host:port
   mqtt_gateway: null
   # MQTT签名密钥，用于生成MQTT连接密码，根据mqtt_gateway的.env文件配置
@@ -658,7 +658,7 @@ LLM:
     type: openai
     # glm-4-flash 是免费的，但是还是需要注册填写api_key的
     # 可在这里找到你的api key https://bigmodel.cn/usercenter/proj-mgmt/apikeys
-    model_name: glm-4-flash
+    model_name: glm-4-flash-250414
     url: https://open.bigmodel.cn/api/paas/v4/
     api_key: 你的chat-glm web key
   OllamaLLM:
@@ -1173,3 +1173,24 @@ TTS:
     # speed: 50  # 语速：0-100
     # pitch: 50  # 语调：0-100
     # language: "中文"  # 指定输出语种,如:中文、英语、日语、韩语等,请根据所选音色支持的语言进行设置,不填则默认为中文
+
+# 桌宠空闲随机动作（配合固件 pet_assets 的 act_* GIF，服务端空闲时随机下发）
+pet:
+  random_actions:
+    enabled: true
+    interval_sec: 45
+    actions:
+      - act_eat_watermelon
+      - act_pet_cat
+      - act_water_gun
+      - act_enjoy_fan
+      - act_big_stretch
+      - act_humming
+      - act_coding
+      - act_float_steps
+      - act_whale_bubble
+      - act_butterfly
+      - act_jump_pop
+      - act_dance
+      - act_maid_dance
+      - act_nap_startled

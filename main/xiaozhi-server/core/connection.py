@@ -185,6 +185,7 @@ class ConnectionHandler:
                 int(self.config.get("close_connection_no_voice_time", 120)) + 60
         )  # 在原来第一道关闭的基础上加60秒，进行二道关闭
         self.timeout_task = None
+        self.pet_action_task = None
 
         # {"mcp":true} 表示启用MCP功能
         self.features = None
@@ -235,6 +236,12 @@ class ConnectionHandler:
 
             # 启动超时检查任务
             self.timeout_task = asyncio.create_task(self._check_timeout())
+
+            # 启动桌宠空闲随机动作调度（配置见 pet.random_actions）
+            pet_cfg = (self.config.get("pet") or {}).get("random_actions") or {}
+            if pet_cfg.get("enabled") and pet_cfg.get("actions"):
+                self.pet_action_task = asyncio.create_task(
+                    self._pet_random_actions(pet_cfg))
 
             # 启动AEC缓存清理任务
             self._aec_cache_cleanup_task = asyncio.create_task(self._check_aec_cache_expiry())
@@ -1571,6 +1578,15 @@ class ConnectionHandler:
                     pass
                 self.timeout_task = None
 
+            # 取消桌宠动作调度任务
+            if getattr(self, "pet_action_task", None) and not self.pet_action_task.done():
+                self.pet_action_task.cancel()
+                try:
+                    await self.pet_action_task
+                except asyncio.CancelledError:
+                    pass
+                self.pet_action_task = None
+
             # 取消AEC缓存清理任务
             if hasattr(self, "_aec_cache_cleanup_task") and self._aec_cache_cleanup_task and not self._aec_cache_cleanup_task.done():
                 self._aec_cache_cleanup_task.cancel()
@@ -1716,6 +1732,36 @@ class ConnectionHandler:
             self.close_after_chat = True
         except Exception as e:
             self.logger.bind(tag=TAG).error(f"Chat and close error: {str(e)}")
+
+    async def _pet_random_actions(self, pet_cfg: dict):
+        """设备空闲时随机下发桌宠动作（配合固件 pet_assets 的 act_* GIF）"""
+        import random
+        actions = list(pet_cfg.get("actions") or [])
+        interval = max(10.0, float(pet_cfg.get("interval_sec", 45)))
+        last_action = None
+        try:
+            while True:
+                await asyncio.sleep(interval)
+                if self.client_is_speaking or self.client_abort:
+                    continue
+                now = time.time() * 1000
+                if now - self.last_activity_time < interval * 1000 * 0.8:
+                    continue
+                candidates = [a for a in actions if a != last_action] or actions
+                action = random.choice(candidates)
+                last_action = action
+                try:
+                    await self.websocket.send(json.dumps({
+                        "type": "llm", "text": "\U0001F916", "emotion": action,
+                        "session_id": self.session_id,
+                    }))
+                    self.logger.bind(tag=TAG).info(f"空闲随机动作: {action}")
+                except Exception as e:
+                    self.logger.bind(tag=TAG).warning(f"下发桌宠动作失败: {e}")
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"桌宠动作调度异常: {e}")
 
     async def _check_timeout(self):
         """检查连接超时"""
